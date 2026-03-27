@@ -425,12 +425,12 @@ export default function Dashboard() {
           :<button onClick={()=>setShowNewCh(true)} style={{margin:'6px 14px',padding:'10px 0',border:'1px dashed var(--border)',borderRadius:8,background:'transparent',color:'var(--text-dim)',fontSize:'inherit',cursor:'pointer',width:'calc(100% - 28px)'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--accent)';e.currentTarget.style.color='#fff'}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.color='var(--text-dim)'}}>+ New Channel</button>}
           {otherUsers.map(ou=>{const theirs=channels.filter(c=>c.user_id===ou.id);return<div key={ou.id}><div style={{padding:'14px 14px 4px',fontSize:fontSize*0.7,fontWeight:700,color:'var(--pink)',textTransform:'uppercase',letterSpacing:'.1em',display:'flex',alignItems:'center',gap:6}}><div style={{width:5,height:5,borderRadius:'50%',background:online.includes(ou.id)?'var(--green)':'#555'}}/>{ou.display_name||ou.email?.split('@')[0]}'s ({theirs.length})</div>{theirs.length===0&&<div style={{padding:'3px 22px',color:'var(--text-dim)'}}>No channels yet</div>}{theirs.map(ch=>renderChannelItem(ch,false,'var(--pink)'))}</div>})}
         </div>
-        <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)',display:'flex',flexDirection:'column',gap:6}}>
-          {installPrompt && <button onClick={async () => { installPrompt.prompt(); const r = await installPrompt.userChoice; if (r.outcome === 'accepted') { setInstallPrompt(null); toast.success('App installed!') } }}
-            style={{width:'100%',padding:'10px',background:'var(--accent)',border:'none',borderRadius:8,color:'#fff',fontSize:fontSize*0.8,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-            📲 Install App
-          </button>}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}><span style={{fontSize:fontSize*0.7,color:'var(--text-dim)'}}>Right-click for options</span><div style={{display:'flex',alignItems:'center',gap:4}}><div className="pulse" style={{width:6,height:6,borderRadius:'50%',background:'var(--green)'}}/><span style={{fontSize:fontSize*0.65,color:'var(--text-dim)'}}>Live sync</span></div></div>
+        <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span style={{fontSize:fontSize*0.7,color:'var(--text-dim)'}}>Right-click for options</span>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <span onClick={()=>{if(installPrompt){installPrompt.prompt();installPrompt.userChoice.then(r=>{if(r.outcome==='accepted'){setInstallPrompt(null);toast.success('App installed!')}})}else{toast('Use browser menu → Install app')}}} style={{fontSize:fontSize*0.7,color:'var(--accent)',cursor:'pointer',fontWeight:600}} onMouseEnter={e=>e.currentTarget.style.textDecoration='underline'} onMouseLeave={e=>e.currentTarget.style.textDecoration='none'}>📲 Install</span>
+            <div style={{display:'flex',alignItems:'center',gap:4}}><div className="pulse" style={{width:6,height:6,borderRadius:'50%',background:'var(--green)'}}/><span style={{fontSize:fontSize*0.65,color:'var(--text-dim)'}}>Live sync</span></div>
+          </div>
         </div>
       </div>
       {renderMain()}
