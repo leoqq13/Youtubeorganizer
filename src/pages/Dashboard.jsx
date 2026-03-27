@@ -270,15 +270,6 @@ export default function Dashboard() {
   const [dragCat, setDragCat] = useState(null); const [dragOverCat, setDragOverCat] = useState(null)
   const [installPrompt, setInstallPrompt] = useState(null)
   const nameRef = useRef(); const newChRef = useRef(); const chRenameRef = useRef(); const catRenameRef = useRef()
-  const [installPrompt, setInstallPrompt] = useState(null)
-
-  // Capture PWA install prompt
-  useEffect(() => {
-    const handler = e => { e.preventDefault(); setInstallPrompt(e) }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-  const [installPrompt, setInstallPrompt] = useState(null)
 
   // Capture PWA install prompt
   useEffect(() => {
@@ -336,13 +327,6 @@ export default function Dashboard() {
   const handleSaveNickname = async name => { setDispName(name); setShowNickPrompt(false); toast.success(`Welcome, ${name}!`); editProfile(user.id,{display_name:name}).then(()=>load()) }
   const handleSaveDisplayName = async () => { setEditName(false); const t=dispName.trim(); const c=profiles.find(p=>p.id===user?.id)?.display_name||''; if(t&&t!==c){toast.success('Name updated!');editProfile(user.id,{display_name:t}).then(()=>load())} }
 
-  const handleInstall = async () => {
-    if (!installPrompt) return
-    installPrompt.prompt()
-    const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') toast.success('App installed!')
-    setInstallPrompt(null)
-  }
   const addSchedule = chId => { const ch=channels.find(c=>c.id===chId); const cats=ch?.categories||DEFAULT_CATS; if(cats.some(c=>c.type==='schedule')){toast('Schedule already exists');return}; const nc=[...cats,{id:uid(),name:'Schedule',type:'schedule'}]; setChannels(p=>p.map(c=>c.id===chId?{...c,categories:nc}:c)); setExpandedChannels(p=>({...p,[chId]:true})); editChannel(chId,{categories:nc}) }
   const addCategory = chId => { const ch=channels.find(c=>c.id===chId); const cats=ch?.categories||DEFAULT_CATS; const nid=uid(); const nc=[...cats,{id:nid,name:'New Category',type:'custom'}]; setChannels(p=>p.map(c=>c.id===chId?{...c,categories:nc}:c)); setExpandedChannels(p=>({...p,[chId]:true})); setRenamingCat({chId,catId:nid}); setCatRenameText('New Category'); editChannel(chId,{categories:nc}) }
   const handleRenameCategory = (chId,catId,newName) => { setChannels(p=>p.map(c=>{if(c.id!==chId)return c;return{...c,categories:(c.categories||DEFAULT_CATS).map(cat=>cat.id===catId?{...cat,name:newName}:cat)}})); setRenamingCat(null); const ch=channels.find(c=>c.id===chId); editChannel(chId,{categories:(ch?.categories||DEFAULT_CATS).map(cat=>cat.id===catId?{...cat,name:newName}:cat)}) }
