@@ -1,0 +1,44 @@
+:root {
+  --bg: #313338;
+  --sidebar: #2b2d31;
+  --panel: #2b2d31;
+  --card: #2b2d31;
+  --card-hi: #35373c;
+  --border: #3f4147;
+  --border-hi: #4e505a;
+  --accent: #5865f2;
+  --accent-soft: #7984f5;
+  --accent-glow: rgba(88,101,242,0.12);
+  --green: #23a559;
+  --green-glow: rgba(35,165,89,0.12);
+  --red: #da373c;
+  --red-glow: rgba(218,55,60,0.12);
+  --pink: #eb459e;
+  --blue: #5865f2;
+  --yellow: #f0b232;
+  --yellow-glow: rgba(240,178,50,0.12);
+  --text: #ffffff;
+  --text-mid: #dbdee1;
+  --text-dim: #949ba4;
+  --input: #1e1f22;
+  --font: 'DM Sans', system-ui, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #root { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+input, textarea, button { font-family: inherit; }
+input::placeholder, textarea::placeholder { color: var(--text-dim); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+.slide-in { animation: slideIn .22s ease-out; }
+.fade-in { animation: fadeIn .3s ease-out; }
+.pulse { animation: pulse 2s infinite; }
+input[type="range"] { -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 4px; outline: none; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #5865f2; cursor: pointer; border: 2px solid #7984f5; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #5865f2; cursor: pointer; border: 2px solid #7984f5; }
+input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 4px; }
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 4px; background: var(--border); }
+.drag-over { border-top: 2px solid var(--accent) !important; }
