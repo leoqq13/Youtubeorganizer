@@ -5,6 +5,13 @@ const REST = `${URL}/rest/v1`
 
 function getToken() {
   try {
+    // Check new storage key first
+    const raw2 = localStorage.getItem('tubeflow-auth')
+    if (raw2) {
+      const parsed = JSON.parse(raw2)
+      return parsed?.access_token || KEY
+    }
+    // Fallback to default supabase key
     const raw = localStorage.getItem(`sb-${new window.URL(URL).hostname.split('.')[0]}-auth-token`)
     if (raw) {
       const parsed = JSON.parse(raw)

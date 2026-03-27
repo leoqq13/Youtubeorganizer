@@ -219,65 +219,51 @@ function CalendarView({ scheduleData, channelId, channelName, onSelect, onSwapDa
 }
 
 // ─── Channel Info ──────────────────────────────────────────────────────────────
-function ChannelInfo({ channel, onUpdate, onFieldChange, fontSize }) {
+function ChannelInfo({ channel, onUpdate, fontSize }) {
   const extraFields = channel.extra_fields || []
-  const [f, setF] = useState(() => { const d = {}; ['credentials','proxies','adsense'].forEach(k => d[k] = channel[k] || ''); extraFields.forEach(ef => d[`extra_${ef.id}`] = channel[`extra_${ef.id}`] || ''); return d })
+  const extraData = channel.extra_data || {}
+  const [f, setF] = useState({})
   const timer = useRef(null)
-  const pendingRef = useRef({}) // accumulates all unsaved field changes
-  const channelIdRef = useRef(channel.id)
   const [renamingField, setRenamingField] = useState(null); const [fieldRenameText, setFieldRenameText] = useState(''); const fieldRenameRef = useRef()
 
-  // When switching TO a different channel: re-initialise from (now-updated) prop
   useEffect(() => {
-    if (channelIdRef.current === channel.id) return
-    channelIdRef.current = channel.id
-    clearTimeout(timer.current)
-    pendingRef.current = {}
-    const d = {}; ['credentials','proxies','adsense'].forEach(k => d[k] = channel[k] || ''); extraFields.forEach(ef => d[`extra_${ef.id}`] = channel[`extra_${ef.id}`] || ''); setF(d)
-  }, [channel.id])
-
-  // Flush any pending save immediately when leaving this channel
-  useEffect(() => {
-    return () => {
-      clearTimeout(timer.current)
-      if (Object.keys(pendingRef.current).length > 0) {
-        editChannel(channel.id, pendingRef.current)
-        onFieldChange(pendingRef.current)
-        pendingRef.current = {}
-      }
-    }
-  }, [channel.id])
-
-  // Merge new extra fields into local state without resetting existing values
-  useEffect(() => { setF(prev => { const next = { ...prev }; extraFields.forEach(ef => { const k = `extra_${ef.id}`; if (!(k in next)) next[k] = channel[k] || '' }); return next }) }, [JSON.stringify(extraFields.map(e => e.id))])
+    const d = {}
+    ;['credentials','proxies','adsense'].forEach(k => d[k] = channel[k] || '')
+    extraFields.forEach(ef => d[ef.id] = extraData[ef.id] || '')
+    setF(d)
+  }, [channel.id, JSON.stringify(extraFields), JSON.stringify(extraData)])
 
   useEffect(() => { if (renamingField) fieldRenameRef.current?.focus() }, [renamingField])
 
-  const u = (k, v) => {
-    const next = { ...f, [k]: v }
-    setF(next)
-    pendingRef.current[k] = v      // track all unsaved changes
-    onFieldChange({ [k]: v })      // optimistically update parent state immediately
+  const saveBuiltin = (k, v) => {
+    const next = { ...f, [k]: v }; setF(next)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      const updates = { ...pendingRef.current }
-      pendingRef.current = {}
-      editChannel(channel.id, updates) // fire-and-forget, parent already has correct state
-    }, 800)
+    timer.current = setTimeout(() => { editChannel(channel.id, { [k]: v }); onUpdate() }, 300)
   }
 
-  const addField = () => { const nid = uid(); const nf = [...extraFields, { id: nid, name: 'New Field' }]; editChannel(channel.id, { extra_fields: nf }); onUpdate(); setTimeout(() => { setRenamingField(nid); setFieldRenameText('New Field') }, 100) }
-  const renameField = (fid, n) => { const nf = extraFields.map(ef => ef.id === fid ? { ...ef, name: n } : ef); editChannel(channel.id, { extra_fields: nf }); setRenamingField(null); onUpdate() }
-  const deleteField = fid => { const nf = extraFields.filter(ef => ef.id !== fid); editChannel(channel.id, { extra_fields: nf }); onUpdate() }
+  const saveExtra = (fieldId, v) => {
+    const next = { ...f, [fieldId]: v }; setF(next)
+    const newData = { ...extraData, [fieldId]: v }
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => { editChannel(channel.id, { extra_data: newData }); onUpdate() }, 300)
+  }
+
+  const addField = () => { const nid = uid(); editChannel(channel.id, { extra_fields: [...extraFields, { id: nid, name: 'New Field' }] }); onUpdate(); setTimeout(() => { setRenamingField(nid); setFieldRenameText('New Field') }, 100) }
+  const renameField = (fid, n) => { editChannel(channel.id, { extra_fields: extraFields.map(ef => ef.id === fid ? { ...ef, name: n } : ef) }); setRenamingField(null); onUpdate() }
+  const deleteField = fid => {
+    const newData = { ...extraData }; delete newData[fid]
+    editChannel(channel.id, { extra_fields: extraFields.filter(ef => ef.id !== fid), extra_data: newData }); onUpdate()
+  }
+
   const inp = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--input)', color: '#fff', fontSize, outline: 'none', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }
   const lbl = { fontSize: fontSize * 0.85, fontWeight: 700, color: 'var(--text-mid)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, display: 'block' }
   return <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
     <h2 style={{ fontSize: fontSize + 6, fontWeight: 700, marginBottom: 28, color: '#fff' }}>Channel Information</h2>
     <div style={{ maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div><label style={lbl}>Credentials</label><textarea value={f.credentials||''} onChange={e => u('credentials', e.target.value)} placeholder="Login details, API keys..." rows={5} style={inp} /></div>
-      <div><label style={lbl}>Proxies</label><textarea value={f.proxies||''} onChange={e => u('proxies', e.target.value)} placeholder="Proxy addresses..." rows={5} style={inp} /></div>
-      <div><label style={lbl}>Adsense</label><textarea value={f.adsense||''} onChange={e => u('adsense', e.target.value)} placeholder="Adsense details..." rows={5} style={inp} /></div>
-      {extraFields.map(ef => <div key={ef.id}><div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>{renamingField === ef.id ? <input ref={fieldRenameRef} value={fieldRenameText} onChange={e => setFieldRenameText(e.target.value)} onBlur={() => { if (fieldRenameText.trim()) renameField(ef.id, fieldRenameText.trim()); else setRenamingField(null) }} onKeyDown={e => { if (e.key==='Enter'&&fieldRenameText.trim()) renameField(ef.id,fieldRenameText.trim()); if (e.key==='Escape') setRenamingField(null) }} style={{ background:'var(--input)',border:'1px solid var(--accent)',borderRadius:4,color:'#fff',padding:'2px 8px',fontSize:fontSize*0.85,fontWeight:700,outline:'none',textTransform:'uppercase',letterSpacing:'.08em' }} /> : <label onDoubleClick={() => { setRenamingField(ef.id); setFieldRenameText(ef.name) }} style={{ ...lbl, marginBottom: 0, cursor: 'pointer' }}>{ef.name}</label>}<button onClick={() => deleteField(ef.id)} style={{ background:'none',border:'none',color:'var(--red)',fontSize:14,cursor:'pointer',opacity:0.6 }}>✕</button></div><textarea value={f[`extra_${ef.id}`]||''} onChange={e => u(`extra_${ef.id}`, e.target.value)} placeholder={`${ef.name} details...`} rows={5} style={inp} /></div>)}
+      <div><label style={lbl}>Credentials</label><textarea value={f.credentials||''} onChange={e => saveBuiltin('credentials', e.target.value)} placeholder="Login details, API keys..." rows={5} style={inp} /></div>
+      <div><label style={lbl}>Proxies</label><textarea value={f.proxies||''} onChange={e => saveBuiltin('proxies', e.target.value)} placeholder="Proxy addresses..." rows={5} style={inp} /></div>
+      <div><label style={lbl}>Adsense</label><textarea value={f.adsense||''} onChange={e => saveBuiltin('adsense', e.target.value)} placeholder="Adsense details..." rows={5} style={inp} /></div>
+      {extraFields.map(ef => <div key={ef.id}><div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>{renamingField === ef.id ? <input ref={fieldRenameRef} value={fieldRenameText} onChange={e => setFieldRenameText(e.target.value)} onBlur={() => { if (fieldRenameText.trim()) renameField(ef.id, fieldRenameText.trim()); else setRenamingField(null) }} onKeyDown={e => { if (e.key==='Enter'&&fieldRenameText.trim()) renameField(ef.id,fieldRenameText.trim()); if (e.key==='Escape') setRenamingField(null) }} style={{ background:'var(--input)',border:'1px solid var(--accent)',borderRadius:4,color:'#fff',padding:'2px 8px',fontSize:fontSize*0.85,fontWeight:700,outline:'none',textTransform:'uppercase',letterSpacing:'.08em' }} /> : <label onDoubleClick={() => { setRenamingField(ef.id); setFieldRenameText(ef.name) }} style={{ ...lbl, marginBottom: 0, cursor: 'pointer' }}>{ef.name}</label>}<button onClick={() => deleteField(ef.id)} style={{ background:'none',border:'none',color:'var(--red)',fontSize:14,cursor:'pointer',opacity:0.6 }}>✕</button></div><textarea value={f[ef.id]||''} onChange={e => saveExtra(ef.id, e.target.value)} placeholder={`${ef.name} details...`} rows={5} style={inp} /></div>)}
       <button onClick={addField} style={{ padding:14,border:'1px dashed var(--border)',borderRadius:8,background:'transparent',color:'var(--text-dim)',fontSize,cursor:'pointer' }} onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.color='#fff' }} onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-dim)' }}>+ Add Field</button>
     </div>
   </div>
@@ -285,9 +271,13 @@ function ChannelInfo({ channel, onUpdate, onFieldChange, fontSize }) {
 
 function CustomCategoryPage({ channel, categoryId, fontSize }) {
   const cats = channel.categories || DEFAULT_CATS; const cat = cats.find(c => c.id === categoryId)
+  const extraData = channel.extra_data || {}
   const [notes, setNotes] = useState(''); const timer = useRef(null)
-  useEffect(() => { setNotes(channel[`cat_${categoryId}`] || '') }, [channel.id, categoryId])
-  const save = v => { setNotes(v); clearTimeout(timer.current); timer.current = setTimeout(() => editChannel(channel.id, { [`cat_${categoryId}`]: v }), 300) }
+  useEffect(() => { setNotes(extraData[`cat_${categoryId}`] || '') }, [channel.id, categoryId, JSON.stringify(extraData)])
+  const save = v => {
+    setNotes(v); clearTimeout(timer.current)
+    timer.current = setTimeout(() => editChannel(channel.id, { extra_data: { ...extraData, [`cat_${categoryId}`]: v } }), 300)
+  }
   return <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}><h2 style={{ fontSize: fontSize + 6, fontWeight: 700, marginBottom: 28, color: '#fff' }}>{cat?.name || 'Category'}</h2><textarea value={notes} onChange={e => save(e.target.value)} placeholder="Type your notes here..." style={{ width: '100%', minHeight: 400, padding: 16, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--input)', color: '#fff', fontSize, outline: 'none', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.6 }} /></div>
 }
 
@@ -311,8 +301,6 @@ export default function Dashboard() {
   const [dragCat, setDragCat] = useState(null); const [dragOverCat, setDragOverCat] = useState(null)
   const [installPrompt, setInstallPrompt] = useState(null)
   const nameRef = useRef(); const newChRef = useRef(); const chRenameRef = useRef(); const catRenameRef = useRef()
-  // Tracks channel IDs recently edited by this user so load() won't overwrite them
-  const recentlySavedRef = useRef(new Set())
 
   // Capture PWA install prompt
   useEffect(() => {
@@ -326,13 +314,7 @@ export default function Dashboard() {
     let shared = ch.find(c => c.name === '__shared_schedule__')
     if (!shared && user) { try { shared = await addChannel('__shared_schedule__', user.id); ch.push(shared) } catch (e) {} }
     if (shared) { setSharedChId(shared.id); setWorkData(shared.work_data || {}) }
-    const filtered = ch.filter(c => c.name !== '__shared_schedule__')
-    setChannels(prev => filtered.map(fc => {
-      // Keep in-memory version for channels we recently saved to avoid realtime overwrite race
-      const inMem = prev.find(p => p.id === fc.id)
-      return (inMem && recentlySavedRef.current.has(fc.id)) ? inMem : fc
-    }))
-    setProfiles(pr)
+    setChannels(ch.filter(c => c.name !== '__shared_schedule__')); setProfiles(pr)
   }, [user])
 
   useEffect(() => { load() }, [load])
@@ -350,16 +332,6 @@ export default function Dashboard() {
   const handleNewChannel = async () => { const name = newChName.trim() || `Channel ${channels.filter(c=>c.user_id===user?.id).length+1}`; setNewChName(''); setShowNewCh(false); const tid = 'temp-'+uid(); const tc = {id:tid,name,user_id:user.id,categories:DEFAULT_CATS,credentials:'',proxies:'',adsense:'',extra_fields:[],schedule_data:{}}; setChannels(p=>[...p,tc]); setActiveCh(tid); setTab('info'); setSharedActive(false); setExpandedChannels(p=>({...p,[tid]:true})); try { const ch = await addChannel(name,user.id); setChannels(p=>p.map(c=>c.id===tid?ch:c)); setActiveCh(ch.id); setExpandedChannels(p=>{const n={...p};delete n[tid];n[ch.id]=true;return n}); toast.success(`Created "${name}"`) } catch(e){ setChannels(p=>p.filter(c=>c.id!==tid)); toast.error('Failed: '+e.message) } }
   const handleRenameChannel = (chId,newName) => { setChannels(p=>p.map(c=>c.id===chId?{...c,name:newName}:c)); setRenamingChId(null); editChannel(chId,{name:newName}) }
   const handleDuplicateChannel = async ch => { try { const dup=await addChannel(ch.name+' (copy)',user.id); await editChannel(dup.id,{credentials:ch.credentials,proxies:ch.proxies,adsense:ch.adsense,categories:ch.categories}); await load(); toast.success('Duplicated!') } catch(e){toast.error('Failed: '+e.message)} }
-
-  // Optimistically update parent channels state when ChannelInfo fields change
-  const handleChannelFieldChange = useCallback((updates) => {
-    if (!activeCh) return
-    // Mark this channel as recently saved — load() will preserve in-memory state for 5s
-    recentlySavedRef.current.add(activeCh)
-    clearTimeout(recentlySavedRef.current[`t_${activeCh}`])
-    recentlySavedRef.current[`t_${activeCh}`] = setTimeout(() => recentlySavedRef.current.delete(activeCh), 5000)
-    setChannels(prev => prev.map(c => c.id === activeCh ? { ...c, ...updates } : c))
-  }, [activeCh])
 
   // Save a YouTube schedule day (date-based on channel.schedule_data)
   const handleSaveScheduleDay = (channelId, dk, data) => {
@@ -424,7 +396,7 @@ export default function Dashboard() {
     if (!activeChannel) return <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',gap:12}}><YTLogo size={60}/><div style={{fontSize:18,fontWeight:600,color:'#fff'}}>Select or create a channel</div></div>
     const cats=activeChannel.categories||DEFAULT_CATS; const ac=cats.find(c=>c.id===tab)
     if (!ac) return <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-dim)'}}>Select a category</div>
-    if (ac.type==='info') return <ChannelInfo channel={activeChannel} onUpdate={load} onFieldChange={handleChannelFieldChange} fontSize={fontSize}/>
+    if (ac.type==='info') return <ChannelInfo channel={activeChannel} onUpdate={load} fontSize={fontSize}/>
     if (ac.type==='schedule') return <CalendarView scheduleData={activeChannel.schedule_data||{}} channelId={activeChannel.id} channelName={activeChannel.name} onSelect={(dk,dn,d)=>setSelDay({dateKey:dk,dayNum:dn,data:d,channelId:activeChannel.id})} onSwapDays={handleSwapDays} fontSize={fontSize}/>
     return <CustomCategoryPage channel={activeChannel} categoryId={ac.id} fontSize={fontSize}/>
   }
