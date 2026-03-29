@@ -5,7 +5,8 @@ import { getChannels, addChannel, editChannel, removeChannel, getProfiles, editP
 import toast from 'react-hot-toast'
 
 const STATUSES = [
-  { key: 'production', label: 'Production', color: '#da373c', bg: 'rgba(218,55,60,.15)' },
+  { key: 'not_started', label: 'Not Started', color: '#da373c', bg: 'rgba(218,55,60,.15)' },
+  { key: 'production', label: 'Production', color: '#5865f2', bg: 'rgba(88,101,242,.15)' },
   { key: 'waiting', label: 'Waiting to Upload', color: '#f0b232', bg: 'rgba(240,178,50,.15)' },
   { key: 'uploaded', label: 'Uploaded', color: '#23a559', bg: 'rgba(35,165,89,.15)' },
 ]
