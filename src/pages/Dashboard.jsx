@@ -5,8 +5,7 @@ import { getChannels, addChannel, editChannel, removeChannel, getProfiles, editP
 import toast from 'react-hot-toast'
 
 const STATUSES = [
-  { key: 'not_started', label: 'Not Started', color: '#da373c', bg: 'rgba(218,55,60,.15)' },
-  { key: 'production', label: 'Production', color: '#5865f2', bg: 'rgba(88,101,242,.15)' },
+  { key: 'production', label: 'Production', color: '#da373c', bg: 'rgba(218,55,60,.15)' },
   { key: 'waiting', label: 'Waiting to Upload', color: '#f0b232', bg: 'rgba(240,178,50,.15)' },
   { key: 'uploaded', label: 'Uploaded', color: '#23a559', bg: 'rgba(35,165,89,.15)' },
 ]
@@ -107,6 +106,104 @@ function SharedDayPanel({ dateKey: dk, dayNum, data, onSave, onClose, fontSize }
           <button onClick={toggleOlivka} style={{ padding: '14px 28px', borderRadius: 10, cursor: 'pointer', fontSize: fontSize + 1, fontWeight: 700, background: olivka ? 'rgba(245,169,208,.15)' : 'var(--input)', border: `3px solid ${olivka ? '#f5a9d0' : 'var(--border)'}`, color: olivka ? '#f5a9d0' : 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 10, transition: 'none' }}><div style={{ width: 24, height: 24, borderRadius: 6, border: `3px solid ${olivka ? '#f5a9d0' : 'var(--border)'}`, background: olivka ? '#f5a9d0' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{olivka && <span style={{ color: '#111', fontSize: 14, fontWeight: 700 }}>✓</span>}</div>Olivka</button>
         </div></div>
         <div><label style={lbl}>Notes</label><textarea value={note} onChange={e => updateNote(e.target.value)} placeholder="Any notes for this day..." rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} /></div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Shared Tasks (Our Schedule → Tasks) ───────────────────────────────────────
+function SharedTasksView({ tasks, onSave, fontSize }) {
+  const [items, setItems] = useState(tasks || [])
+  const [newText, setNewText] = useState('')
+  const newRef = useRef()
+
+  useEffect(() => { setItems(tasks || []) }, [JSON.stringify(tasks)])
+
+  const save = (updated) => { setItems(updated); onSave(updated) }
+
+  const addTask = () => {
+    if (!newText.trim()) return
+    const updated = [...items, { id: uid(), text: newText.trim(), done: false }]
+    save(updated); setNewText('')
+    setTimeout(() => newRef.current?.focus(), 50)
+  }
+
+  const toggleDone = (id) => { save(items.map(t => t.id === id ? { ...t, done: !t.done } : t)) }
+
+  const updateText = (id, text) => { save(items.map(t => t.id === id ? { ...t, text } : t)) }
+
+  const deleteTask = (id) => { save(items.filter(t => t.id !== id)) }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', background: '#2b2d31' }}>
+        <h2 style={{ fontSize: fontSize + 6, fontWeight: 700, color: '#fff' }}>💞 Tasks</h2>
+        <div style={{ fontSize: fontSize - 2, color: 'var(--text-dim)', marginTop: 3 }}>
+          {items.filter(t => t.done).length}/{items.length} completed
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map(task => (
+            <div key={task.id} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+              background: task.done ? 'rgba(35,165,89,.08)' : 'var(--card)',
+              border: `1px solid ${task.done ? 'rgba(35,165,89,.2)' : 'var(--border)'}`,
+              borderRadius: 10,
+            }}>
+              {/* Checkbox */}
+              <div onClick={() => toggleDone(task.id)} style={{
+                width: 24, height: 24, borderRadius: 6, flexShrink: 0, cursor: 'pointer', marginTop: 2,
+                border: `2px solid ${task.done ? '#23a559' : 'var(--border)'}`,
+                background: task.done ? '#23a559' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all .12s',
+              }}>
+                {task.done && <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>✓</span>}
+              </div>
+              {/* Text area — auto-expands */}
+              <textarea value={task.text} onChange={e => updateText(task.id, e.target.value)}
+                rows={1}
+                onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+                style={{
+                  flex: 1, background: 'transparent', border: 'none', color: task.done ? 'var(--text-dim)' : '#fff',
+                  fontSize, outline: 'none', resize: 'none', lineHeight: 1.5, padding: 0,
+                  textDecoration: task.done ? 'line-through' : 'none', fontFamily: 'inherit',
+                  overflow: 'hidden', minHeight: '1.5em',
+                }} />
+              {/* Delete */}
+              <button onClick={() => deleteTask(task.id)} style={{
+                background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 16,
+                cursor: 'pointer', padding: '2px 4px', flexShrink: 0, marginTop: 2,
+              }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>✕</button>
+            </div>
+          ))}
+          {/* Add new task */}
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+            border: '1px dashed var(--border)', borderRadius: 10,
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+              border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginTop: 2,
+            }}>
+              <span style={{ color: 'var(--text-dim)', fontSize: 16 }}>+</span>
+            </div>
+            <textarea ref={newRef} value={newText} onChange={e => setNewText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() } }}
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
+              placeholder="Add a task... (Enter to save)"
+              rows={1}
+              style={{
+                flex: 1, background: 'transparent', border: 'none', color: '#fff',
+                fontSize, outline: 'none', resize: 'none', lineHeight: 1.5, padding: 0,
+                fontFamily: 'inherit', overflow: 'hidden', minHeight: '1.5em',
+              }} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -290,6 +387,7 @@ export default function Dashboard() {
   const [selDay, setSelDay] = useState(null) // { dateKey, dayNum, data, channelId }
   const [sharedChId, setSharedChId] = useState(null); const [workData, setWorkData] = useState({})
   const [sharedExpanded, setSharedExpanded] = useState(true); const [sharedActive, setSharedActive] = useState(false)
+  const [sharedTab, setSharedTab] = useState('schedule') // 'schedule' or 'tasks'
   const [selSharedDate, setSelSharedDate] = useState(null)
   const [online, setOnline] = useState([]); const [sideW, setSideW] = useState(280); const [fontSize, setFontSize] = useState(16)
   const [editName, setEditName] = useState(false); const [dispName, setDispName] = useState('')
@@ -356,6 +454,11 @@ export default function Dashboard() {
     if (sharedChId) editChannel(sharedChId, { work_data: nw })
   }
 
+  const handleSaveTasks = (tasks) => {
+    const nw = { ...workData, __tasks__: tasks }; setWorkData(nw)
+    if (sharedChId) editChannel(sharedChId, { work_data: nw })
+  }
+
   const handleSaveNickname = async name => { setDispName(name); setShowNickPrompt(false); toast.success(`Welcome, ${name}!`); editProfile(user.id,{display_name:name}).then(()=>load()) }
   const handleSaveDisplayName = async () => { setEditName(false); const t=dispName.trim(); const c=profiles.find(p=>p.id===user?.id)?.display_name||''; if(t&&t!==c){toast.success('Name updated!');editProfile(user.id,{display_name:t}).then(()=>load())} }
 
@@ -393,6 +496,7 @@ export default function Dashboard() {
   }
 
   const renderMain = () => {
+    if (sharedActive && sharedTab === 'tasks') return <SharedTasksView tasks={workData.__tasks__ || []} onSave={handleSaveTasks} fontSize={fontSize} />
     if (sharedActive) return <SharedCalendarView workData={workData} onSelect={(dk,dn,d)=>setSelSharedDate({dateKey:dk,dayNum:dn,data:d})} fontSize={fontSize}/>
     if (!activeChannel) return <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',gap:12}}><YTLogo size={60}/><div style={{fontSize:18,fontWeight:600,color:'#fff'}}>Select or create a channel</div></div>
     const cats=activeChannel.categories||DEFAULT_CATS; const ac=cats.find(c=>c.id===tab)
@@ -430,10 +534,13 @@ export default function Dashboard() {
           {profiles.map(p=><div key={p.id} style={{display:'flex',alignItems:'center',gap:4,padding:'2px 8px',borderRadius:10,background:p.id===user?.id?'rgba(88,101,242,.12)':'rgba(30,30,35,.5)',border:`1px solid ${p.id===user?.id?'rgba(88,101,242,.3)':'var(--border)'}`}}><div style={{width:6,height:6,borderRadius:'50%',background:online.includes(p.id)?'var(--green)':'#555'}}/><span style={{fontSize:fontSize*0.7,color:'#fff'}}>{p.id===user?.id?'You':(p.display_name||p.email?.split('@')[0])}</span></div>)}
         </div>}
         <div style={{flex:1,overflowY:'auto',padding:'6px 0'}}>
-          <div onClick={()=>{if(sharedActive){setSharedExpanded(e=>!e)}else{setSharedActive(true);setActiveCh(null);setSelDay(null);setSharedExpanded(true)}}} style={{padding:'9px 14px 9px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,background:sharedActive?'rgba(245,169,208,.12)':'transparent',borderLeft:sharedActive?'3px solid #f5a9d0':'3px solid transparent',color:'#fff',fontWeight:600}}>
+          <div onClick={()=>{if(sharedActive){setSharedExpanded(e=>!e)}else{setSharedActive(true);setActiveCh(null);setSelDay(null);setSharedExpanded(true);setSharedTab('schedule')}}} style={{padding:'9px 14px 9px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,background:sharedActive?'rgba(245,169,208,.12)':'transparent',borderLeft:sharedActive?'3px solid #f5a9d0':'3px solid transparent',color:'#fff',fontWeight:600}}>
             <Arrow open={sharedExpanded&&sharedActive}/><span style={{fontSize:16}}>💞</span><span style={{flex:1}}>Our Schedule</span>
           </div>
-          {sharedActive&&sharedExpanded&&<div style={{paddingLeft:36,marginBottom:4}}><div style={{padding:'6px 12px',borderRadius:6,marginRight:14,background:'rgba(245,169,208,.15)',color:'#fff',fontWeight:600,cursor:'default'}}>📆| Schedule</div></div>}
+          {sharedActive&&sharedExpanded&&<div style={{paddingLeft:36,marginBottom:4,display:'flex',flexDirection:'column',gap:0}}>
+            <div onClick={()=>setSharedTab('schedule')} style={{padding:'6px 12px',borderRadius:6,marginRight:14,background:sharedTab==='schedule'?'rgba(245,169,208,.15)':'transparent',color:sharedTab==='schedule'?'#fff':'var(--text-mid)',fontWeight:sharedTab==='schedule'?600:400,cursor:'pointer'}}>📆| Schedule</div>
+            <div onClick={()=>setSharedTab('tasks')} style={{padding:'6px 12px',borderRadius:6,marginRight:14,background:sharedTab==='tasks'?'rgba(245,169,208,.15)':'transparent',color:sharedTab==='tasks'?'#fff':'var(--text-mid)',fontWeight:sharedTab==='tasks'?600:400,cursor:'pointer'}}>✅| Tasks</div>
+          </div>}
           <div style={{height:1,background:'var(--border)',margin:'6px 14px'}}/>
           <div style={{padding:'8px 14px 4px',fontSize:fontSize*0.7,fontWeight:700,color:'var(--text-mid)',textTransform:'uppercase',letterSpacing:'.1em'}}>{myName}'s Channels ({myChannels.length})</div>
           {[...myChannels,...orphans].map(ch=>renderChannelItem(ch,true))}
