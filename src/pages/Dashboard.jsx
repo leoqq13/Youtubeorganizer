@@ -166,7 +166,7 @@ function SharedTasksView({ taskData, onSave, fontSize }) {
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp)
   }
 
-  const filtered = activeFolder === 'all' ? items : items.filter(t => (t.folder || '') === activeFolder)
+  const filtered = activeFolder === 'all' ? items.filter(t => !t.folder) : items.filter(t => t.folder === activeFolder)
   const doneCount = filtered.filter(t => t.done).length
   const autoGrow = e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }
 
@@ -224,7 +224,7 @@ function SharedTasksView({ taskData, onSave, fontSize }) {
 
         <div style={{ width: 200, minWidth: 160, borderLeft: '1px solid var(--border)', background: '#2b2d31', display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '12px 0' }}>
           <div style={{ padding: '4px 14px 10px', fontSize: fontSize * 0.7, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Folders</div>
-          <div onClick={() => setActiveFolder('all')} style={{ padding: '8px 14px', cursor: 'pointer', fontWeight: 600, fontSize: fontSize * 0.85, color: activeFolder === 'all' ? '#fff' : 'var(--text-dim)', background: activeFolder === 'all' ? 'rgba(245,169,208,.12)' : 'transparent', borderLeft: activeFolder === 'all' ? '3px solid #f5a9d0' : '3px solid transparent' }}>All ({items.length})</div>
+          <div onClick={() => setActiveFolder('all')} style={{ padding: '8px 14px', cursor: 'pointer', fontWeight: 600, fontSize: fontSize * 0.85, color: activeFolder === 'all' ? '#fff' : 'var(--text-dim)', background: activeFolder === 'all' ? 'rgba(245,169,208,.12)' : 'transparent', borderLeft: activeFolder === 'all' ? '3px solid #f5a9d0' : '3px solid transparent' }}>Unfiled ({items.filter(t => !t.folder).length})</div>
           {folders.map(f => {
             const count = items.filter(t => t.folder === f.id).length; const isA = activeFolder === f.id
             return <div key={f.id} onClick={() => setActiveFolder(f.id)} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setFolderCtx({ x: e.clientX, y: e.clientY, folderId: f.id }) }}
