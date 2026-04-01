@@ -130,16 +130,43 @@ function SharedTasksView({ taskData, onSave, fontSize }) {
   const [ghostText, setGhostText] = useState('')
   const [dragging, setDragging] = useState(false)
   const newRef = useRef(); const folderRenameRef = useRef(); const newFolderRef = useRef(); const listRef = useRef()
+  const dirty = useRef(false)
+  const saveTimer = useRef(null)
 
-  useEffect(() => { const l = Array.isArray(taskData); setItems(l ? taskData : (taskData?.items || [])); setFolders(l ? [] : (taskData?.folders || [])) }, [JSON.stringify(taskData)])
-  useEffect(() => { const t = setTimeout(() => { if (listRef.current) listRef.current.querySelectorAll('textarea[data-auto]').forEach(el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }) }, 30); return () => clearTimeout(t) })
+  // Only sync from props when WE didn't cause the change
+  useEffect(() => {
+    if (dirty.current) { dirty.current = false; return }
+    const l = Array.isArray(taskData)
+    setItems(l ? taskData : (taskData?.items || []))
+    setFolders(l ? [] : (taskData?.folders || []))
+  }, [JSON.stringify(taskData)])
+
+  // Auto-resize textareas once on mount + when switching folders
+  const [sizeKey, setSizeKey] = useState(0)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (listRef.current) listRef.current.querySelectorAll('textarea[data-auto]').forEach(el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' })
+    }, 50)
+    return () => clearTimeout(t)
+  }, [sizeKey, activeFolder])
+
+  // Trigger resize when items count changes
+  useEffect(() => { setSizeKey(k => k + 1) }, [items.length])
+
   useEffect(() => { if (showNewFolder) newFolderRef.current?.focus() }, [showNewFolder])
   useEffect(() => { if (renamingFolder) folderRenameRef.current?.focus() }, [renamingFolder])
 
-  const save = (ni, nf) => { setItems(ni); setFolders(nf || folders); onSave({ items: ni, folders: nf || folders }) }
-  const addTask = () => { if (!newText.trim()) return; save([...items, { id: uid(), text: newText.trim(), done: false, folder: activeFolder === 'all' ? '' : activeFolder }]); setNewText(''); setTimeout(() => newRef.current?.focus(), 50) }
+  const save = (ni, nf) => {
+    dirty.current = true
+    const newFolders = nf || folders
+    setItems(ni); setFolders(newFolders)
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => onSave({ items: ni, folders: newFolders }), 400)
+  }
+
+  const addTask = () => { if (!newText.trim()) return; save([...items, { id: uid(), text: newText.trim(), done: false, folder: activeFolder === 'all' ? '' : activeFolder }]); setNewText(''); setTimeout(() => { newRef.current?.focus(); setSizeKey(k => k + 1) }, 50) }
   const toggleDone = id => save(items.map(t => t.id === id ? { ...t, done: !t.done } : t))
-  const updateText = (id, text) => save(items.map(t => t.id === id ? { ...t, text } : t))
+  const updateText = (id, text) => { dirty.current = true; setItems(prev => prev.map(t => t.id === id ? { ...t, text } : t)); clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => { const ni = items.map(t => t.id === id ? { ...t, text } : t); onSave({ items: ni, folders }) }, 600) }
   const deleteTask = id => save(items.filter(t => t.id !== id))
   const moveToFolder = (tid, fid) => { save(items.map(t => t.id === tid ? { ...t, folder: fid } : t)); setFolderMenu(null) }
   const addFolder = () => { if (!newFolderName.trim()) return; save(items, [...folders, { id: uid(), name: newFolderName.trim() }]); setNewFolderName(''); setShowNewFolder(false) }
