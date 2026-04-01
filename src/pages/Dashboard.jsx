@@ -112,91 +112,212 @@ function SharedDayPanel({ dateKey: dk, dayNum, data, onSave, onClose, fontSize }
 }
 
 // ─── Shared Tasks (Our Schedule → Tasks) ───────────────────────────────────────
-function SharedTasksView({ tasks, onSave, fontSize }) {
-  const [items, setItems] = useState(tasks || [])
+function SharedTasksView({ taskData, onSave, fontSize }) {
+  // taskData can be an array (legacy) or { items: [], folders: [] }
+  const legacy = Array.isArray(taskData)
+  const [items, setItems] = useState(legacy ? taskData : (taskData?.items || []))
+  const [folders, setFolders] = useState(legacy ? [] : (taskData?.folders || []))
+  const [activeFolder, setActiveFolder] = useState('all')
   const [newText, setNewText] = useState('')
+  const [newFolderName, setNewFolderName] = useState('')
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [folderMenu, setFolderMenu] = useState(null)
+  const [renamingFolder, setRenamingFolder] = useState(null)
+  const [folderRenameText, setFolderRenameText] = useState('')
   const newRef = useRef()
+  const folderRenameRef = useRef()
+  const newFolderRef = useRef()
 
-  useEffect(() => { setItems(tasks || []) }, [JSON.stringify(tasks)])
+  // Auto-size textarea on mount
+  const autoSize = el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }
 
-  const save = (updated) => { setItems(updated); onSave(updated) }
+  useEffect(() => {
+    const l = Array.isArray(taskData)
+    setItems(l ? taskData : (taskData?.items || []))
+    setFolders(l ? [] : (taskData?.folders || []))
+  }, [JSON.stringify(taskData)])
+
+  // Auto-resize all textareas when items change
+  useEffect(() => {
+    setTimeout(() => {
+      document.querySelectorAll('[data-autosize]').forEach(el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' })
+    }, 20)
+  }, [items.length, activeFolder])
+
+  useEffect(() => { if (showNewFolder) newFolderRef.current?.focus() }, [showNewFolder])
+  useEffect(() => { if (renamingFolder) folderRenameRef.current?.focus() }, [renamingFolder])
+
+  const save = (newItems, newFolders) => {
+    setItems(newItems); setFolders(newFolders || folders)
+    onSave({ items: newItems, folders: newFolders || folders })
+  }
 
   const addTask = () => {
     if (!newText.trim()) return
-    const updated = [...items, { id: uid(), text: newText.trim(), done: false }]
-    save(updated); setNewText('')
+    const folder = activeFolder === 'all' ? '' : activeFolder
+    save([...items, { id: uid(), text: newText.trim(), done: false, folder }]); setNewText('')
     setTimeout(() => newRef.current?.focus(), 50)
   }
 
-  const toggleDone = (id) => { save(items.map(t => t.id === id ? { ...t, done: !t.done } : t)) }
+  const toggleDone = id => save(items.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  const updateText = (id, text) => save(items.map(t => t.id === id ? { ...t, text } : t))
+  const deleteTask = id => save(items.filter(t => t.id !== id))
+  const moveToFolder = (taskId, folderId) => { save(items.map(t => t.id === taskId ? { ...t, folder: folderId } : t)); setFolderMenu(null) }
 
-  const updateText = (id, text) => { save(items.map(t => t.id === id ? { ...t, text } : t)) }
+  const addFolder = () => {
+    if (!newFolderName.trim()) return
+    const nf = [...folders, { id: uid(), name: newFolderName.trim() }]
+    setFolders(nf); save(items, nf); setNewFolderName(''); setShowNewFolder(false)
+  }
 
-  const deleteTask = (id) => { save(items.filter(t => t.id !== id)) }
+  const renameFolder = (fid, name) => {
+    const nf = folders.map(f => f.id === fid ? { ...f, name } : f)
+    setFolders(nf); save(items, nf); setRenamingFolder(null)
+  }
+
+  const deleteFolder = (fid) => {
+    const nf = folders.filter(f => f.id !== fid)
+    const ni = items.map(t => t.folder === fid ? { ...t, folder: '' } : t)
+    setFolders(nf); if (activeFolder === fid) setActiveFolder('all'); save(ni, nf)
+  }
+
+  const filtered = activeFolder === 'all' ? items : items.filter(t => (t.folder || '') === (activeFolder === 'uncategorized' ? '' : activeFolder))
+  const doneCount = filtered.filter(t => t.done).length
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={() => folderMenu && setFolderMenu(null)}>
+      {/* Folder picker dropdown */}
+      {folderMenu && (
+        <div style={{ position: 'fixed', left: folderMenu.x, top: folderMenu.y, zIndex: 9999, background: '#111214', border: '1px solid var(--border-hi)', borderRadius: 8, padding: '4px 0', minWidth: 160, boxShadow: '0 8px 24px rgba(0,0,0,.6)' }}>
+          <div onClick={() => moveToFolder(folderMenu.taskId, '')} style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#fff' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,101,242,.15)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>No folder</div>
+          {folders.map(f => (
+            <div key={f.id} onClick={() => moveToFolder(folderMenu.taskId, f.id)} style={{ padding: '8px 14px', cursor: 'pointer', fontSize: 13, color: '#fff' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(88,101,242,.15)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>📁 {f.name}</div>
+          ))}
+        </div>
+      )}
+
       <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', background: '#2b2d31' }}>
         <h2 style={{ fontSize: fontSize + 6, fontWeight: 700, color: '#fff' }}>💞 Tasks</h2>
-        <div style={{ fontSize: fontSize - 2, color: 'var(--text-dim)', marginTop: 3 }}>
-          {items.filter(t => t.done).length}/{items.length} completed
-        </div>
+        <div style={{ fontSize: fontSize - 2, color: 'var(--text-dim)', marginTop: 3 }}>{doneCount}/{filtered.length} completed</div>
       </div>
+
+      {/* Folder tabs */}
+      <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: '#2b2d31' }}>
+        <div onClick={() => setActiveFolder('all')} style={{
+          padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: fontSize * 0.8, fontWeight: 600,
+          background: activeFolder === 'all' ? 'rgba(245,169,208,.15)' : 'transparent',
+          color: activeFolder === 'all' ? '#fff' : 'var(--text-dim)',
+          border: `1px solid ${activeFolder === 'all' ? 'rgba(245,169,208,.3)' : 'transparent'}`,
+        }}>All ({items.length})</div>
+
+        {folders.map(f => {
+          const count = items.filter(t => t.folder === f.id).length
+          const isActive = activeFolder === f.id
+          return (
+            <div key={f.id} onClick={() => setActiveFolder(f.id)}
+              onContextMenu={e => { e.preventDefault(); setRenamingFolder(f.id); setFolderRenameText(f.name) }}
+              style={{
+                padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: fontSize * 0.8, fontWeight: 600,
+                background: isActive ? 'rgba(88,101,242,.15)' : 'transparent',
+                color: isActive ? '#fff' : 'var(--text-dim)',
+                border: `1px solid ${isActive ? 'rgba(88,101,242,.3)' : 'transparent'}`,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+              {renamingFolder === f.id ? (
+                <input ref={folderRenameRef} value={folderRenameText} onChange={e => setFolderRenameText(e.target.value)}
+                  onBlur={() => { if (folderRenameText.trim()) renameFolder(f.id, folderRenameText.trim()); else setRenamingFolder(null) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && folderRenameText.trim()) renameFolder(f.id, folderRenameText.trim()); if (e.key === 'Escape') setRenamingFolder(null) }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ background: 'var(--input)', border: '1px solid var(--accent)', borderRadius: 4, color: '#fff', padding: '2px 6px', fontSize: 'inherit', outline: 'none', width: 80 }} />
+              ) : (
+                <span>📁 {f.name} ({count})</span>
+              )}
+              {renamingFolder !== f.id && <span onClick={e => { e.stopPropagation(); deleteFolder(f.id) }} style={{ fontSize: 12, color: 'var(--text-dim)', cursor: 'pointer', marginLeft: 2 }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>✕</span>}
+            </div>
+          )
+        })}
+
+        {showNewFolder ? (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <input ref={newFolderRef} value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addFolder(); if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName('') } }}
+              placeholder="Folder name..."
+              style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--input)', color: '#fff', fontSize: fontSize * 0.8, outline: 'none', width: 100 }} />
+            <button onClick={addFolder} style={{ background: 'var(--accent)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: fontSize * 0.75, fontWeight: 600 }}>Add</button>
+          </div>
+        ) : (
+          <div onClick={() => setShowNewFolder(true)} style={{
+            padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: fontSize * 0.8,
+            color: 'var(--text-dim)', border: '1px dashed var(--border)',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-dim)' }}>+ Folder</div>
+        )}
+      </div>
+
+      {/* Task list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         <div style={{ maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {items.map(task => (
-            <div key={task.id} style={{
-              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
-              background: task.done ? 'rgba(35,165,89,.08)' : 'var(--card)',
-              border: `1px solid ${task.done ? 'rgba(35,165,89,.2)' : 'var(--border)'}`,
-              borderRadius: 10,
-            }}>
-              {/* Checkbox */}
-              <div onClick={() => toggleDone(task.id)} style={{
-                width: 24, height: 24, borderRadius: 6, flexShrink: 0, cursor: 'pointer', marginTop: 2,
-                border: `2px solid ${task.done ? '#23a559' : 'var(--border)'}`,
-                background: task.done ? '#23a559' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'all .12s',
+          {filtered.map(task => {
+            const taskFolder = folders.find(f => f.id === task.folder)
+            return (
+              <div key={task.id} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+                background: task.done ? 'rgba(35,165,89,.08)' : 'var(--card)',
+                border: `1px solid ${task.done ? 'rgba(35,165,89,.2)' : 'var(--border)'}`,
+                borderRadius: 10,
               }}>
-                {task.done && <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>✓</span>}
+                <div onClick={() => toggleDone(task.id)} style={{
+                  width: 24, height: 24, borderRadius: 6, flexShrink: 0, cursor: 'pointer', marginTop: 2,
+                  border: `2px solid ${task.done ? '#23a559' : 'var(--border)'}`,
+                  background: task.done ? '#23a559' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .12s',
+                }}>
+                  {task.done && <span style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>✓</span>}
+                </div>
+                <textarea data-autosize ref={autoSize} value={task.text} onChange={e => { updateText(task.id, e.target.value); autoSize(e.target) }}
+                  style={{
+                    flex: 1, background: 'transparent', border: 'none', color: task.done ? 'var(--text-dim)' : '#fff',
+                    fontSize, outline: 'none', resize: 'none', lineHeight: 1.5, padding: 0,
+                    textDecoration: task.done ? 'line-through' : 'none', fontFamily: 'inherit',
+                    overflow: 'hidden', minHeight: '1.5em',
+                  }} />
+                {taskFolder && activeFolder === 'all' && (
+                  <span style={{ fontSize: fontSize * 0.65, color: 'var(--text-dim)', background: 'rgba(88,101,242,.1)', padding: '2px 8px', borderRadius: 4, flexShrink: 0, marginTop: 3 }}>
+                    📁 {taskFolder.name}
+                  </span>
+                )}
+                <button onClick={e => { e.stopPropagation(); setFolderMenu({ taskId: task.id, x: e.clientX - 140, y: e.clientY + 4 }) }} style={{
+                  background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 15,
+                  cursor: 'pointer', padding: '2px 4px', flexShrink: 0, marginTop: 2,
+                }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'} title="Move to folder">📁</button>
+                <button onClick={() => deleteTask(task.id)} style={{
+                  background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 16,
+                  cursor: 'pointer', padding: '2px 4px', flexShrink: 0, marginTop: 2,
+                }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>✕</button>
               </div>
-              {/* Text area — auto-expands */}
-              <textarea value={task.text} onChange={e => updateText(task.id, e.target.value)}
-                rows={1}
-                onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
-                style={{
-                  flex: 1, background: 'transparent', border: 'none', color: task.done ? 'var(--text-dim)' : '#fff',
-                  fontSize, outline: 'none', resize: 'none', lineHeight: 1.5, padding: 0,
-                  textDecoration: task.done ? 'line-through' : 'none', fontFamily: 'inherit',
-                  overflow: 'hidden', minHeight: '1.5em',
-                }} />
-              {/* Delete */}
-              <button onClick={() => deleteTask(task.id)} style={{
-                background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 16,
-                cursor: 'pointer', padding: '2px 4px', flexShrink: 0, marginTop: 2,
-              }}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}>✕</button>
-            </div>
-          ))}
-          {/* Add new task */}
+            )
+          })}
           <div style={{
             display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
             border: '1px dashed var(--border)', borderRadius: 10,
           }}>
             <div style={{
               width: 24, height: 24, borderRadius: 6, flexShrink: 0,
-              border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginTop: 2,
+              border: '2px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2,
             }}>
               <span style={{ color: 'var(--text-dim)', fontSize: 16 }}>+</span>
             </div>
-            <textarea ref={newRef} value={newText} onChange={e => setNewText(e.target.value)}
+            <textarea ref={newRef} value={newText} onChange={e => { setNewText(e.target.value); autoSize(e.target) }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() } }}
-              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px' }}
               placeholder="Add a task... (Enter to save)"
-              rows={1}
               style={{
                 flex: 1, background: 'transparent', border: 'none', color: '#fff',
                 fontSize, outline: 'none', resize: 'none', lineHeight: 1.5, padding: 0,
@@ -496,7 +617,7 @@ export default function Dashboard() {
   }
 
   const renderMain = () => {
-    if (sharedActive && sharedTab === 'tasks') return <SharedTasksView tasks={workData.__tasks__ || []} onSave={handleSaveTasks} fontSize={fontSize} />
+    if (sharedActive && sharedTab === 'tasks') return <SharedTasksView taskData={workData.__tasks__ || []} onSave={handleSaveTasks} fontSize={fontSize} />
     if (sharedActive) return <SharedCalendarView workData={workData} onSelect={(dk,dn,d)=>setSelSharedDate({dateKey:dk,dayNum:dn,data:d})} fontSize={fontSize}/>
     if (!activeChannel) return <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'var(--text-dim)',gap:12}}><YTLogo size={60}/><div style={{fontSize:18,fontWeight:600,color:'#fff'}}>Select or create a channel</div></div>
     const cats=activeChannel.categories||DEFAULT_CATS; const ac=cats.find(c=>c.id===tab)

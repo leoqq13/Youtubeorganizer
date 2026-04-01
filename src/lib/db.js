@@ -5,17 +5,30 @@ const REST = `${URL}/rest/v1`
 
 function getToken() {
   try {
-    // Check new storage key first
-    const raw2 = localStorage.getItem('tubeflow-auth')
-    if (raw2) {
-      const parsed = JSON.parse(raw2)
-      return parsed?.access_token || KEY
+    // Try all possible storage keys
+    const keys = [
+      'tubeflow-auth',
+      `sb-${new window.URL(URL).hostname.split('.')[0]}-auth-token`,
+    ]
+    for (const key of keys) {
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      try {
+        const parsed = JSON.parse(raw)
+        // Handle both direct session and wrapped session formats
+        const token = parsed?.access_token || parsed?.currentSession?.access_token
+        if (token) return token
+      } catch {}
     }
-    // Fallback to default supabase key
-    const raw = localStorage.getItem(`sb-${new window.URL(URL).hostname.split('.')[0]}-auth-token`)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return parsed?.access_token || KEY
+    // Also scan localStorage for any supabase auth key
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && (k.includes('auth-token') || k.includes('supabase'))) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(k))
+          if (parsed?.access_token) return parsed.access_token
+        } catch {}
+      }
     }
   } catch {}
   return KEY
@@ -35,7 +48,7 @@ async function api(path, opts = {}) {
   const res = await fetch(`${REST}${path}`, { headers: headers(), ...opts })
   if (!res.ok) {
     const err = await res.text()
-    console.error('API error:', res.status, err)
+    console.error('API error:', res.status, err, 'Path:', path)
     throw new Error(err)
   }
   const text = await res.text()
@@ -57,10 +70,14 @@ export async function addChannel(name, userId) {
 }
 
 export async function editChannel(id, updates) {
-  await api(`/channels?id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  })
+  try {
+    await api(`/channels?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  } catch (e) {
+    console.error('editChannel failed:', id, updates, e.message)
+  }
 }
 
 export async function removeChannel(id) {
